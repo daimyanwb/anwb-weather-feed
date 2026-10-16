@@ -5,11 +5,16 @@ on:
 
   schedule:
     # Iedere dag om 07:00 UTC
-    # In Nederland is dat 08:00 wintertijd of 09:00 zomertijd
+    # 08:00 Nederlandse wintertijd
+    # 09:00 Nederlandse zomertijd
     - cron: "0 7 * * *"
 
 permissions:
   contents: write
+
+concurrency:
+  group: update-amsterdam-weather-feed
+  cancel-in-progress: false
 
 jobs:
   update-weather:
@@ -19,6 +24,8 @@ jobs:
     steps:
       - name: Repository openen
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Python installeren
         uses: actions/setup-python@v5
@@ -39,10 +46,17 @@ jobs:
         run: |
           rm -f amsterdam_weather.grib2
 
-      - name: CSV opslaan in repository
+      - name: CSV veilig opslaan in repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          cp weather_feed_amsterdam.csv /tmp/weather_feed_amsterdam.csv
+
+          git fetch origin main
+          git reset --hard origin/main
+
+          cp /tmp/weather_feed_amsterdam.csv weather_feed_amsterdam.csv
 
           git add weather_feed_amsterdam.csv
 
@@ -50,5 +64,5 @@ jobs:
             echo "Geen wijzigingen in de weather feed."
           else
             git commit -m "Update Amsterdam weather feed"
-            git push
+            git push origin main
           fi
