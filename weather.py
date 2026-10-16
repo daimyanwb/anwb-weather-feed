@@ -25,8 +25,15 @@ PARAMETERS = [
     "2t",      # Temperatuur op 2 meter
     "ssrd",    # Zonnestraling aan het aardoppervlak
     "tcc",     # Totale bewolking
-    "10u",     # Horizontale windcomponent
-    "10v"      # Verticale windcomponent
+    "10u",     # Windcomponent west-oost
+    "10v"      # Windcomponent zuid-noord
+]
+
+ADVERTENTIE_NAMES = [
+    "geen-wind",
+    "wel-wind",
+    "geen-regen",
+    "wel-regen"
 ]
 
 
@@ -72,12 +79,20 @@ with GRIB_FILE.open("rb") as file:
             break
 
         try:
-            parameter = eccodes.codes_get(gid, "shortName")
+            parameter = eccodes.codes_get(
+                gid,
+                "shortName"
+            )
 
             if parameter not in PARAMETERS:
                 continue
 
-            step = int(eccodes.codes_get(gid, "endStep"))
+            step = int(
+                eccodes.codes_get(
+                    gid,
+                    "endStep"
+                )
+            )
 
             nearest = eccodes.codes_grib_find_nearest(
                 gid,
@@ -91,8 +106,19 @@ with GRIB_FILE.open("rb") as file:
             used_grid_lon = float(nearest["lon"])
             distance_km = float(nearest["distance"])
 
-            date = str(eccodes.codes_get(gid, "dataDate"))
-            time = int(eccodes.codes_get(gid, "dataTime"))
+            date = str(
+                eccodes.codes_get(
+                    gid,
+                    "dataDate"
+                )
+            )
+
+            time = int(
+                eccodes.codes_get(
+                    gid,
+                    "dataTime"
+                )
+            )
 
             run_time = pd.to_datetime(
                 f"{date} {time:04d}",
@@ -103,7 +129,10 @@ with GRIB_FILE.open("rb") as file:
             if model_run is None:
                 model_run = run_time
 
-            valid_time = run_time + timedelta(hours=step)
+            valid_time = (
+                run_time
+                + timedelta(hours=step)
+            )
 
             if valid_time not in weather_data:
                 weather_data[valid_time] = {}
@@ -126,8 +155,9 @@ if not weather_data:
 
 rows = []
 
-for valid_time, values in sorted(weather_data.items()):
-
+for valid_time, values in sorted(
+    weather_data.items()
+):
     temperature = values.get("2t")
     precipitation = values.get("tp")
     cloud_cover = values.get("tcc")
@@ -166,26 +196,49 @@ for valid_time, values in sorted(weather_data.items()):
 
 
 df = pd.DataFrame(rows)
-df = df.sort_values("tijd").reset_index(drop=True)
+df = df.sort_values("tijd").reset_index(
+    drop=True
+)
 
 
 # =========================================================
 # SAMENVATTING KOMENDE 7 DAGEN
 # =========================================================
 
-temperature_values = df["temperatuur_c"].dropna()
-precipitation_values = df["neerslag_cumulatief_mm"].dropna()
-cloud_values = df["bewolking_pct"].dropna()
-solar_values = df["zonnestraling_j_m2"].dropna()
-wind_values = df["windsnelheid_m_s"].dropna()
+temperature_values = (
+    df["temperatuur_c"].dropna()
+)
+
+precipitation_values = (
+    df["neerslag_cumulatief_mm"].dropna()
+)
+
+cloud_values = (
+    df["bewolking_pct"].dropna()
+)
+
+solar_values = (
+    df["zonnestraling_j_m2"].dropna()
+)
+
+wind_values = (
+    df["windsnelheid_m_s"].dropna()
+)
+
 
 if precipitation_values.empty:
-    raise RuntimeError("Neerslagdata ontbreekt.")
+    raise RuntimeError(
+        "Neerslagdata ontbreekt."
+    )
 
 if temperature_values.empty:
-    raise RuntimeError("Temperatuurdata ontbreekt.")
+    raise RuntimeError(
+        "Temperatuurdata ontbreekt."
+    )
 
-# ECMWF total precipitation is cumulatief vanaf de modelrun
+
+# ECMWF total precipitation is cumulatief
+# vanaf de start van de modelrun
 precipitation_7d_mm = max(
     0,
     precipitation_values.iloc[-1]
@@ -214,7 +267,9 @@ wind_max_kmh = (
     else None
 )
 
-# Zonnestraling omrekenen van joule naar kWh per vierkante meter
+
+# Zonnestraling omrekenen van joule
+# naar kWh per vierkante meter
 solar_radiation_7d_kwh_m2 = None
 
 if not solar_values.empty:
@@ -232,7 +287,7 @@ if not solar_values.empty:
 # =========================================================
 
 # Eerste marketingdrempels voor de pilot.
-# Deze kunnen later op basis van performance worden aangepast.
+# Deze kunnen later worden aangepast.
 
 if precipitation_7d_mm >= 10:
     weather_trigger = "rain"
@@ -263,76 +318,108 @@ else:
 # DYNAMISCHE ADVERTENTIETEKST
 # =========================================================
 
-precipitation_visual_mm = round(precipitation_7d_mm)
+precipitation_visual_mm = round(
+    precipitation_7d_mm
+)
 
 if weather_trigger == "rain":
     visual_headline = (
         f"Regen verwacht in {CITY}"
     )
+
     visual_weather_text = (
-        f"Meer dan 10 mm in de komende 7 dagen"
+        "Meer dan 10 mm in de komende 7 dagen"
     )
+
     product_category = "regenproducten"
 
 elif weather_trigger == "warm_sunny":
     visual_headline = (
         f"Zonnige dagen verwacht in {CITY}"
     )
+
     visual_weather_text = (
         "Tijd om naar buiten te gaan"
     )
+
     product_category = "zomerproducten"
 
 elif weather_trigger == "cold":
     visual_headline = (
         f"Koudere dagen verwacht in {CITY}"
     )
+
     visual_weather_text = (
         "Bereid je voor op de kou"
     )
+
     product_category = "warme kleding"
 
 elif weather_trigger == "windy":
     visual_headline = (
         f"Winderige dagen verwacht in {CITY}"
     )
+
     visual_weather_text = (
         "Bereid je voor op onstuimig weer"
     )
+
     product_category = "outdoorproducten"
 
 else:
     visual_headline = (
         f"Ga voorbereid op pad in {CITY}"
     )
+
     visual_weather_text = (
         "Bekijk het actuele assortiment"
     )
+
     product_category = "algemeen"
 
 
 # =========================================================
-# CHANNABLE- EN CAPE-FEED MAKEN
+# BASISREGEL VOOR DE FEED MAKEN
 # =========================================================
 
 generated_at = datetime.now(timezone.utc)
 
-feed = pd.DataFrame([{
+base_feed_row = {
     "city": CITY,
+
     "latitude_requested": LAT,
     "longitude_requested": LON,
-    "latitude_gridpoint": round(used_grid_lat, 2),
-    "longitude_gridpoint": round(used_grid_lon, 2),
-    "gridpoint_distance_km": round(distance_km, 1),
 
-    "forecast_start": df["tijd"].min().isoformat(),
-    "forecast_end": df["tijd"].max().isoformat(),
+    "latitude_gridpoint": round(
+        used_grid_lat,
+        2
+    ),
+
+    "longitude_gridpoint": round(
+        used_grid_lon,
+        2
+    ),
+
+    "gridpoint_distance_km": round(
+        distance_km,
+        1
+    ),
+
+    "forecast_start": (
+        df["tijd"].min().isoformat()
+    ),
+
+    "forecast_end": (
+        df["tijd"].max().isoformat()
+    ),
+
     "forecast_period": "komende 7 dagen",
 
     "precipitation_7d_mm": round(
         precipitation_7d_mm,
         1
     ),
+
     "precipitation_visual_mm": (
         precipitation_visual_mm
     ),
@@ -341,17 +428,22 @@ feed = pd.DataFrame([{
         temperature_avg_c,
         1
     ),
+
     "temperature_min_c": round(
         temperature_min_c,
         1
     ),
+
     "temperature_max_c": round(
         temperature_max_c,
         1
     ),
 
     "solar_radiation_7d_kwh_m2": (
-        round(solar_radiation_7d_kwh_m2, 1)
+        round(
+            solar_radiation_7d_kwh_m2,
+            1
+        )
         if solar_radiation_7d_kwh_m2 is not None
         else ""
     ),
@@ -383,10 +475,54 @@ feed = pd.DataFrame([{
     "model": "ECMWF IFS",
     "model_run_utc": model_run.isoformat(),
     "generated_at_utc": generated_at.isoformat(),
+
     "source": "ECMWF Open Data",
     "source_license": "CC BY 4.0"
-}])
+}
 
+
+# =========================================================
+# VIER ADVERTENTIE-ITEMS MAKEN
+# =========================================================
+
+feed_rows = []
+
+for advertentie_name in ADVERTENTIE_NAMES:
+    row = base_feed_row.copy()
+
+    row["id"] = (
+        f"{CITY.lower()}-{advertentie_name}"
+    )
+
+    row["advertentie_name"] = advertentie_name
+
+    feed_rows.append(row)
+
+
+feed = pd.DataFrame(feed_rows)
+
+
+# Volgorde van de belangrijkste kolommen bepalen
+first_columns = [
+    "id",
+    "advertentie_name",
+    "city"
+]
+
+remaining_columns = [
+    column
+    for column in feed.columns
+    if column not in first_columns
+]
+
+feed = feed[
+    first_columns + remaining_columns
+]
+
+
+# =========================================================
+# CSV OPSLAAN
+# =========================================================
 
 feed.to_csv(
     CSV_FILE,
@@ -403,28 +539,44 @@ print()
 print("Weather feed succesvol aangemaakt.")
 print(f"Bestand: {CSV_FILE}")
 print(f"Locatie: {CITY}")
+
 print(
     f"ECMWF-gridpunt: "
     f"{used_grid_lat}, {used_grid_lon}"
 )
+
 print(
     f"Afstand tot Amsterdam: "
     f"{distance_km:.1f} km"
 )
+
 print(
     f"Neerslag komende 7 dagen: "
     f"{precipitation_7d_mm:.1f} mm"
 )
+
 print(
     f"Gemiddelde temperatuur: "
     f"{temperature_avg_c:.1f} graden Celsius"
 )
+
+print(
+    f"Gemiddelde wind: "
+    f"{wind_avg_kmh:.1f} km/u"
+)
+
 print(
     f"Weertrigger: {weather_trigger}"
 )
-print(
-    f"Visual: {visual_headline}"
-)
-print(
-    f"Subtekst: {visual_weather_text}"
-)
+
+print()
+print("Aangemaakte advertentie-items:")
+
+for advertentie_name in ADVERTENTIE_NAMES:
+    print(
+        f"- {CITY.lower()}-{advertentie_name}"
+    )
+
+print()
+print(f"Visual: {visual_headline}")
+print(f"Subtekst: {visual_weather_text}")
